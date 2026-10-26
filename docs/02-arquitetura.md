@@ -50,6 +50,7 @@ flowchart LR
 
 | Tabela | Grão | Principais colunas |
 |---|---|---|
+| `inventario` | PDF | tabela intermediária com os bytes do PDF (`content`), hash e primeira página; existe porque o serverless não aceita `.cache()` |
 | `documentos` | PDF | `doc_id`, `arquivo`, `tipo`, `numero`, `ano`, `orgao`, `processo_sei`, `exercicio_vaar`, `condicionalidades`, `assunto`, `n_paginas`, `bytes` |
 | `paginas` | página | `doc_id`, `pagina`, `texto_bruto`, `n_chars`, `n_tabelas`, `tabelas` |
 | `paginas_limpas` | página | `doc_id`, `pagina`, `texto`, `n_chars_limpo`, `n_palavras`, `n_tabelas` |

@@ -31,7 +31,7 @@ def sha256_bytes(conteudo: bytes) -> str:
 
 def info_pdf(conteudo: bytes) -> dict:
     """Número de páginas, hash e texto da primeira página (usado nos metadados)."""
-    import fitz  # import local: a UDF roda nos executores
+    import pymupdf as fitz  # import local: a UDF roda nos executores
 
     with fitz.open(stream=conteudo, filetype="pdf") as doc:
         primeira = doc[0].get_text("text") if doc.page_count else ""
@@ -52,7 +52,7 @@ def faixas_de_paginas(n_paginas: int, tamanho: int) -> list:
 
 def extrair_paginas(conteudo: bytes, pag_ini: int, pag_fim: int, detectar_tabelas: bool = True) -> list:
     """Extrai texto e tabelas das páginas [pag_ini, pag_fim] (1-based, inclusivo)."""
-    import fitz
+    import pymupdf as fitz
 
     saida = []
     with fitz.open(stream=conteudo, filetype="pdf") as doc:
@@ -82,19 +82,41 @@ def extrair_paginas(conteudo: bytes, pag_ini: int, pag_fim: int, detectar_tabela
 
 # COMMAND ----------
 
+# O NFKC troca "º" por "o", então "Nº" chega como "No"
+_NUM = r"N\s*[ºOo°]\.?\s*(\d+)"
 _TIPOS = [
-    ("Portaria Interministerial", r"PORTARIA\s+INTERMINISTERIAL[^\n]*?N[ºo°]\s*(\d+)\s*,?\s*DE\s+\d{1,2}\s+DE\s+\w+\s+DE\s+(\d{4})"),
-    ("Resolução CIF", r"RESOLU[ÇC][ÃA]O\s+CIF\s+N[ºo°]\s*(\d+)\s*,?\s*DE\s+\d{1,2}\s+DE\s+\w+\s+DE\s+(\d{4})"),
-    ("Nota Técnica Conjunta", r"NOTA\s+T[ÉE]CNICA\s+CONJUNTA\s+N[ºo°]\s*(\d+)\s*/\s*(\d{4})"),
-    ("Nota Técnica", r"NOTA\s+T[ÉE]CNICA\s+N[ºo°]\s*(\d+)\s*/\s*(\d{4})"),
+    ("Portaria Interministerial", r"PORTARIA\s+INTERMINISTERIAL[A-Z/ ]{0,20}?" + _NUM + r"\s*,?\s*DE\s+\d{1,2}\s+DE\s+\w+\s+DE\s+(\d{4})"),
+    ("Resolução CIF", r"RESOLU[ÇC][ÃA]O\s+CIF\s+" + _NUM + r"\s*,?\s*DE\s+\d{1,2}\s+DE\s+\w+\s+DE\s+(\d{4})"),
+    ("Nota Técnica Conjunta", r"NOTA\s+T[ÉE]CNICA\s+CONJUNTA\s+" + _NUM + r"\s*/\s*(\d{4})"),
+    ("Nota Técnica", r"NOTA\s+T[ÉE]CNICA\s+" + _NUM + r"\s*/\s*(\d{4})"),
 ]
 
-_ORGAOS = [
-    ("INEP", r"INSTITUTO NACIONAL DE ESTUDOS E PESQUISAS|INEP"),
-    ("CIF", r"RESOLU[ÇC][ÃA]O\s+CIF"),
-    ("MEC/MF", r"INTERMINISTERIAL\s+MEC/MF"),
-    ("MEC/SEB", r"Secretaria de Educa[çc][ãa]o B[áa]sica|/SEB"),
-]
+_ORGAO_POR_TIPO = {"Resolução CIF": "CIF", "Portaria Interministerial": "MEC/MF"}
+
+
+def _orgao(tipo: str, titulo: str, texto: str):
+    if tipo in _ORGAO_POR_TIPO:
+        return _ORGAO_POR_TIPO[tipo]
+    # Notas técnicas: o órgão aparece no cabeçalho ou no próprio número ("4/2025/CGMEB/DAEB- INEP")
+    if "INEP" in titulo or texto[:200].upper().startswith("INSTITUTO NACIONAL"):
+        return "INEP"
+    if "SEB" in titulo or texto[:200].upper().startswith("MINIST"):
+        return "MEC/SEB"
+    return None
+
+
+def _titulo(texto: str):
+    """Acha o título do documento: o primeiro tipo de norma que aparece no texto.
+
+    1ª passada só com maiúsculas, porque os títulos vêm assim e as citações no corpo não
+    (ex.: decisões do CADE no DOU citam "Nota Técnica nº ..."). 2ª passada em qualquer caixa.
+    """
+    for flags in (0, re.I):
+        achados = [(m.start(), nome, m) for nome, padrao in _TIPOS for m in [re.search(padrao, texto, flags)] if m]
+        if achados:
+            _, nome, m = min(achados, key=lambda achado: achado[0])
+            return nome, m
+    return "Outro", None
 
 
 def _romanos(trecho: str) -> list:
@@ -106,25 +128,25 @@ def _romanos(trecho: str) -> list:
 
 def extrair_metadados(nome_arquivo: str, primeira_pagina: str) -> dict:
     texto = normalizar_espacos(unicodedata.normalize("NFKC", primeira_pagina or ""))
-    upper = texto.upper()
 
-    tipo, numero, ano = "Outro", None, None
-    for nome_tipo, padrao in _TIPOS:
-        m = re.search(padrao, upper)
-        if m:
-            tipo, numero, ano = nome_tipo, int(m.group(1)), int(m.group(2))
-            break
+    tipo, m = _titulo(texto)
+    numero = int(m.group(1)) if m else None
+    ano = int(m.group(2)) if m else None
+    titulo = texto[m.start():m.end() + 40].upper() if m else ""
 
-    orgao = next((o for o, p in _ORGAOS if re.search(p, texto, flags=re.I if o != "INEP" else 0)), None)
+    orgao = _orgao(tipo, titulo, texto)
 
     processo = re.search(r"\d{5}\.\d{6}/\d{4}-\d{2}", texto)
     publicacao = re.search(r"Publicado em:\s*(\d{2}/\d{2}/\d{4})", texto)
 
     # Assunto: notas técnicas têm a seção ASSUNTO; resoluções e portarias, a ementa logo após o título
-    m = re.search(r"ASSUNTO\s*(?:1\s*\.\s*1\s*\.\s*)?(.+?)(?=\s(?:\d\s*\.\s*)?(?:REFER[ÊE]NCIAS|SUM[ÁA]RIO|CONTEXTO|INTRODU)|$)", texto)
-    if not m:
-        m = re.search(r"DE \d{4}\s+(.+?)(?=\s(?:A COORDENADORA|O MINISTRO|OS MINISTROS|RESOLVE)|$)", texto)
-    assunto = (m.group(1) if m else texto)[:600].strip()
+    sec = re.search(r"ASSUNTO\s*(?:1\s*\.\s*1\s*\.\s*)?(.+?)(?=\s(?:\d\s*\.\s*)?(?:REFER[ÊE]NCIAS|SUM[ÁA]RIO|CONTEXTO|INTRODU)|$)", texto)
+    if sec:
+        assunto = sec.group(1)
+    else:
+        resto = texto[m.end():] if m else texto
+        assunto = re.split(r"\s(?:A COORDENADORA|O MINISTRO|OS MINISTROS|RESOLVE)", resto, maxsplit=1)[0]
+    assunto = assunto[:600].strip()
 
     exercicios = [int(a) for a in re.findall(r"exerc[íi]cio(?:\s+financeiro)?\s+de\s+(\d{4})", assunto, flags=re.I)]
     condicionalidades = set()

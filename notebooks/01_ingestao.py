@@ -56,13 +56,35 @@ if IS_DATABRICKS:
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+def ler_binarios_sem_hadoop(pasta):
+    """Mesmo schema do binaryFile, lendo os arquivos no driver.
+
+    Só para rodar local no Windows: lá o Spark não lista diretórios sem winutils/hadoop.dll.
+    """
+    from datetime import datetime
+
+    schema = T.StructType([
+        T.StructField("path", T.StringType()),
+        T.StructField("modificationTime", T.TimestampType()),
+        T.StructField("length", T.LongType()),
+        T.StructField("content", T.BinaryType()),
+    ])
+    linhas = []
+    for nome in sorted(os.listdir(pasta)):
+        if nome.lower().endswith(".pdf"):
+            caminho = os.path.join(pasta, nome)
+            with open(caminho, "rb") as arquivo:
+                conteudo = arquivo.read()
+            linhas.append(("file:/" + caminho.replace("\\", "/"), datetime.fromtimestamp(os.path.getmtime(caminho)), len(conteudo), bytearray(conteudo)))
+    return spark.createDataFrame(linhas, schema)
+
+
 with medir("leitura_binaria") as m:
-    binarios = (
-        spark.read.format("binaryFile")
-        .option("pathGlobFilter", "*.pdf")
-        .load(PDF_DIR)
-        .withColumn("arquivo", F.element_at(F.split("path", "/"), -1))
-    )
+    if IS_DATABRICKS or os.name != "nt":
+        binarios = spark.read.format("binaryFile").option("pathGlobFilter", "*.pdf").load(PDF_DIR)
+    else:
+        binarios = ler_binarios_sem_hadoop(PDF_DIR)
+    binarios = binarios.withColumn("arquivo", F.element_at(F.split("path", "/"), -1))
     m["arquivos"] = binarios.count()
     m["bytes"] = binarios.agg(F.sum("length")).first()[0]
 
@@ -100,15 +122,17 @@ schema_meta = T.StructType([
 info_udf = F.udf(info_pdf, schema_info)
 meta_udf = F.udf(extrair_metadados, schema_meta)
 
+# Salvo como tabela (e não com .cache(), que o serverless não aceita): assim as UDFs rodam uma
+# vez só e o dropDuplicates não escolhe um arquivo diferente a cada ação.
 with medir("inventario_metadados") as m:
-    inventario = (
+    inventario = salvar(
         binarios
         .withColumn("info", info_udf("content"))
         .select("arquivo", "path", "length", "content", "info.*")
         .dropDuplicates(["sha256"])                      # shuffle 1: deduplicação por hash
         .withColumn("doc_id", F.substring("sha256", 1, 12))
-        .withColumn("meta", meta_udf("arquivo", "primeira_pagina"))
-        .cache()
+        .withColumn("meta", meta_udf("arquivo", "primeira_pagina")),
+        "inventario",
     )
     m["documentos_unicos"] = inventario.count()
 
@@ -182,8 +206,6 @@ with medir("extracao_paginas", faixas=n_faixas, paginas_por_tarefa=PAGINAS_POR_T
         "paginas",
     )
     m["paginas"] = paginas.count()
-
-inventario.unpersist()
 
 # COMMAND ----------
 

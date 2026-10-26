@@ -1,6 +1,6 @@
 # Execução local (no Databricks só pymupdf precisa ser instalado via %pip)
 pyspark==3.5.3
-pymupdf>=1.24
+pymupdf>=1.24.3
 pandas
 pyarrow
 pytest

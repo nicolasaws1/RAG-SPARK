@@ -19,7 +19,6 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
-from pyspark.sql.window import Window
 
 paginas = ler("paginas")
 documentos = ler("documentos")
@@ -102,8 +101,9 @@ with medir("groupby_texto_por_doc") as m:
 # MAGIC %md
 # MAGIC ## 3. Join com metadados: broadcast × sort-merge
 # MAGIC A tabela `documentos` é minúscula, então o Spark prefere **broadcast**: copia ela inteira para cada
-# MAGIC executor e evita o shuffle. Forçando `merge` (sort-merge join), os dois lados são reparticionados
-# MAGIC por `doc_id`, o que aparece como dois `Exchange hashpartitioning` no plano.
+# MAGIC executor (`BroadcastExchange`, que não é shuffle). Forçando `merge` (sort-merge join), os dois lados
+# MAGIC precisam estar particionados por `doc_id`. O lado das estatísticas já está, por causa do `groupBy`;
+# MAGIC o lado `documentos` ganha um `Exchange hashpartitioning` a mais, que é o shuffle extra do join.
 
 # COMMAND ----------
 
@@ -118,13 +118,18 @@ meta = documentos.select("doc_id", "arquivo", "tipo", "orgao", "ano", "exercicio
 join_broadcast = estatisticas.join(meta.hint("broadcast"), "doc_id")
 join_merge = estatisticas.join(meta.hint("merge"), "doc_id")
 
+def n_shuffles(texto_plano: str) -> int:
+    # Cada shuffle aparece como um Exchange com "hashpartitioning(...)" nos argumentos
+    return texto_plano.count("hashpartitioning(")
+
+
 planos_join = {"broadcast": plano(join_broadcast), "merge": plano(join_merge)}
 for nome, texto_plano in planos_join.items():
-    print(f"===== {nome}: {texto_plano.count('Exchange')} operador(es) Exchange =====")
+    print(f"===== {nome}: {n_shuffles(texto_plano)} shuffle(s) =====")
     print(texto_plano)
 
-for nome, df in [("join_broadcast", join_broadcast), ("join_merge", join_merge)]:
-    with medir(nome, exchanges=planos_join[nome.split("_")[1]].count("Exchange")) as m:
+for nome, df in [("broadcast", join_broadcast), ("merge", join_merge)]:
+    with medir(f"join_{nome}", shuffles=n_shuffles(planos_join[nome])) as m:
         m["linhas"] = df.count()
 
 display(join_broadcast.orderBy(F.desc("palavras")))

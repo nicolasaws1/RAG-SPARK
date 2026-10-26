@@ -48,7 +48,7 @@ ORDER BY exercicio_vaar, tipo;
 
 ## Como rodar localmente
 
-Requer Python 3.10+ e Java 8, 11 ou 17.
+Requer Java 8, 11 ou 17 e Python 3.10 ou 3.11. **No Windows, o PySpark 3.5 não funciona com Python 3.12**: o processo Python que executa as tarefas fecha sozinho ("Python worker exited unexpectedly"). Também no Windows, o Spark não consegue listar pastas sem o `winutils`, então o notebook 01 lê os PDFs pelo Python e monta o mesmo DataFrame que o `binaryFile` geraria. No Databricks nada disso acontece.
 
 ```bash
 pip install -r requirements.txt
