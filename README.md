@@ -26,7 +26,7 @@ docs/                         proposta, arquitetura, entrega e resultados
 docs/prints/                  capturas de tela da execução no Databricks
 notebooks/
   00_config.py                caminhos, parâmetros, salvar/ler tabelas, medição de tempo
-  funcoes.py                  extração de PDF, metadados e chunking (Python puro, testável)
+  funcoes.py                  extração de PDF e metadados (Python puro, testável)
   01_ingestao.py              semana 2: PDFs → tabelas documentos e paginas
   02_processamento_spark.py   semana 3: limpeza, shuffle, joins e métricas
   03_chunking.py              paginas_limpas → tabela chunks (texto e tabelas)

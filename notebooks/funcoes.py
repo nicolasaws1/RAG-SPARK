@@ -3,7 +3,7 @@
 # MAGIC # Funções do pipeline (Python puro)
 # MAGIC
 # MAGIC Tudo aqui é Python sem Spark, para poder ser testado com `pytest` e usado dentro das UDFs.
-# MAGIC Os notebooks `01` e `02` carregam este arquivo com `%run ./funcoes`.
+# MAGIC O notebook `01` carrega este arquivo com `%run ./funcoes`.
 
 # COMMAND ----------
 
@@ -168,39 +168,3 @@ def extrair_metadados(nome_arquivo: str, primeira_pagina: str) -> dict:
         "condicionalidades": sorted(condicionalidades, key=ROMANOS.index),
         "assunto": assunto,
     }
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Chunking
-
-# COMMAND ----------
-
-
-def dividir_em_chunks(texto: str, tamanho: int, sobreposicao: int, minimo: int = 50) -> list:
-    """Janela deslizante de `tamanho` caracteres com `sobreposicao`, sem cortar palavras.
-
-    Mesma ideia do `chunk_text_func` do notebook da disciplina, mas o corte cai no último
-    espaço ou quebra de linha antes do limite, e o próximo chunk começa no início de uma palavra.
-    """
-    assert 0 <= sobreposicao < tamanho // 2, "a sobreposição precisa ser menor que metade do chunk"
-    texto = (texto or "").strip()
-    chunks = []
-    inicio = 0
-    while inicio < len(texto):
-        fim = min(inicio + tamanho, len(texto))
-        if fim < len(texto):
-            corte = max(texto.rfind(" ", inicio + tamanho // 2, fim), texto.rfind("\n", inicio + tamanho // 2, fim))
-            if corte > inicio:
-                fim = corte
-        trecho = texto[inicio:fim].strip()
-        if len(trecho) >= minimo:
-            chunks.append(trecho)
-        if fim >= len(texto):
-            break
-        # Volta `sobreposicao` caracteres e avança até o começo da próxima palavra
-        proximo = fim - sobreposicao
-        while proximo < fim and not texto[proximo - 1].isspace():
-            proximo += 1
-        inicio = proximo
-    return chunks

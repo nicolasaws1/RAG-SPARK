@@ -26,17 +26,8 @@
 
 # COMMAND ----------
 
-# MAGIC %run ./funcoes
-
-# COMMAND ----------
-
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
-
-assert "dividir_em_chunks" in globals(), (
-    "O funcoes.py carregado é antigo (não tem dividir_em_chunks). "
-    "Abra o Git folder, descarte as alterações locais e clique em Pull."
-)
 
 # ─── Parâmetros do chunking ──────────────────────────────────
 CHUNK_SIZE = 800                # caracteres por chunk (o notebook da disciplina usa 300)
@@ -54,11 +45,39 @@ print(f"⚙️  CHUNK_SIZE={CHUNK_SIZE} | CHUNK_OVERLAP={CHUNK_OVERLAP} | CHUNK_
 
 # MAGIC %md
 # MAGIC ## 1. Chunks de texto
-# MAGIC Uma UDF aplica `dividir_em_chunks` em cada página e o `posexplode` transforma a lista em linhas,
-# MAGIC guardando a posição do chunk dentro da página (`chunk_index`). O chunking é por página, então
-# MAGIC todo chunk sabe exatamente de qual página veio.
+# MAGIC `dividir_em_chunks` faz o papel do `chunk_text_func` do notebook da disciplina: janela deslizante
+# MAGIC com sobreposição, mas cortando no último espaço antes do limite. Uma UDF aplica a função em cada
+# MAGIC página e o `posexplode` transforma a lista em linhas, guardando a posição do chunk dentro da página
+# MAGIC (`chunk_index`). O chunking é por página, então todo chunk sabe exatamente de qual página veio.
 
 # COMMAND ----------
+
+
+def dividir_em_chunks(texto: str, tamanho: int, sobreposicao: int, minimo: int = 50) -> list:
+    """Janela deslizante de `tamanho` caracteres com `sobreposicao`, sem cortar palavras."""
+    assert 0 <= sobreposicao < tamanho // 2, "a sobreposição precisa ser menor que metade do chunk"
+    texto = (texto or "").strip()
+    chunks = []
+    inicio = 0
+    while inicio < len(texto):
+        fim = min(inicio + tamanho, len(texto))
+        if fim < len(texto):
+            # Corta no último espaço ou quebra de linha da segunda metade da janela
+            corte = max(texto.rfind(" ", inicio + tamanho // 2, fim), texto.rfind("\n", inicio + tamanho // 2, fim))
+            if corte > inicio:
+                fim = corte
+        trecho = texto[inicio:fim].strip()
+        if len(trecho) >= minimo:
+            chunks.append(trecho)
+        if fim >= len(texto):
+            break
+        # Volta `sobreposicao` caracteres e avança até o começo da próxima palavra
+        proximo = fim - sobreposicao
+        while proximo < fim and not texto[proximo - 1].isspace():
+            proximo += 1
+        inicio = proximo
+    return chunks
+
 
 chunk_udf = F.udf(
     lambda texto: dividir_em_chunks(texto, CHUNK_SIZE, CHUNK_OVERLAP, CHUNK_MINIMO),
