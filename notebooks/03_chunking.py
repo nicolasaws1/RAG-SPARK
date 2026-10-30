@@ -33,6 +33,11 @@
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+assert "dividir_em_chunks" in globals(), (
+    "O funcoes.py carregado é antigo (não tem dividir_em_chunks). "
+    "Abra o Git folder, descarte as alterações locais e clique em Pull."
+)
+
 # ─── Parâmetros do chunking ──────────────────────────────────
 CHUNK_SIZE = 800                # caracteres por chunk (o notebook da disciplina usa 300)
 CHUNK_OVERLAP = 150             # sobreposição entre chunks consecutivos
