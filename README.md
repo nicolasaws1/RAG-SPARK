@@ -48,7 +48,7 @@ Os notebooks estão no formato *Databricks source* (`.py` com `# COMMAND -------
    - A extração da Portaria (169 páginas, com detecção de tabelas) é a célula mais demorada.
    - No fim, a tabela de conferência deve mostrar `ok = true` para todos os PDFs.
 4. Abra `notebooks/02_processamento_spark` e clique em **Run all**. Ele gera `paginas_limpas`, `texto_por_doc` e `metricas`.
-5. Abra `notebooks/03_chunking` e clique em **Run all**. Ele gera `chunks` e `metricas_chunking`. Tamanho e sobreposição dos chunks ficam em `00_config` (`CHUNK_SIZE`, `CHUNK_OVERLAP`).
+5. Abra `notebooks/03_chunking` e clique em **Run all**. Ele gera `chunks` e `metricas_chunking`. Tamanho e sobreposição dos chunks (`CHUNK_SIZE`, `CHUNK_OVERLAP`) ficam na primeira célula de código do próprio notebook.
 6. **Evidência do shuffle:** abaixo de cada célula, clique em **See performance → Query profile**. Os operadores `Exchange`/`Shuffle` mostram linhas e bytes trocados. Os planos físicos e a contagem de shuffles de cada join também ficam impressos na saída da seção 3 do notebook 02.
 7. As tabelas ficam em **Catalog → workspace → rag_spark** e podem ser consultadas no **SQL Editor**:
 

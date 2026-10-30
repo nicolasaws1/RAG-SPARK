@@ -21,9 +21,6 @@ VOLUME = "pdfs"
 PAGINAS_POR_TAREFA = 20         # cada faixa de 20 páginas vira uma tarefa Spark
 SHUFFLE_PARTITIONS = 8          # "shuffle pequeno": poucos dados, poucas partições
 DETECTAR_TABELAS = True
-CHUNK_SIZE = 800                # caracteres por chunk (o notebook da disciplina usa 300)
-CHUNK_OVERLAP = 150             # sobreposição entre chunks consecutivos
-CHUNK_MINIMO = 50               # descarta pedaços menores que isso (rodapés, números de página)
 # ─────────────────────────────────────────────────────────────
 
 if IS_DATABRICKS:

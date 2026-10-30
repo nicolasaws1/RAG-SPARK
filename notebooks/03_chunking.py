@@ -11,7 +11,7 @@
 # MAGIC
 # MAGIC | | Notebook da disciplina | Este notebook |
 # MAGIC |---|---|---|
-# MAGIC | Tamanho / sobreposição | 300 / 50 caracteres | `CHUNK_SIZE` / `CHUNK_OVERLAP` (800 / 150) |
+# MAGIC | Tamanho / sobreposição | 300 / 50 caracteres | `CHUNK_SIZE` / `CHUNK_OVERLAP` (800 / 150), definidos na primeira célula de código |
 # MAGIC | Onde corta | no caractere exato, no meio da palavra | no último espaço antes do limite |
 # MAGIC | Identificador | `monotonically_increasing_id()` (muda a cada execução) | `doc_id-pagina-tipo-indice` (estável) |
 # MAGIC | Tabelas do PDF | não trata | cada tabela vira um chunk próprio, em Markdown |
@@ -32,6 +32,12 @@
 
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
+
+# ─── Parâmetros do chunking ──────────────────────────────────
+CHUNK_SIZE = 800                # caracteres por chunk (o notebook da disciplina usa 300)
+CHUNK_OVERLAP = 150             # sobreposição entre chunks consecutivos
+CHUNK_MINIMO = 50               # descarta pedaços menores que isso (rodapés, números de página)
+# ─────────────────────────────────────────────────────────────
 
 paginas_limpas = ler("paginas_limpas")
 documentos = ler("documentos")
