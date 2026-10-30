@@ -16,7 +16,7 @@ import time
 import urllib.request
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-NOTEBOOKS = ["00_config.py", "funcoes.py", "01_ingestao.py", "02_processamento_spark.py"]
+NOTEBOOKS = ["00_config.py", "funcoes.py", "01_ingestao.py", "02_processamento_spark.py", "03_chunking.py"]
 
 os.environ["RAG_SPARK_REPO"] = REPO
 os.environ.setdefault("PYSPARK_PYTHON", sys.executable)

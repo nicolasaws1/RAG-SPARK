@@ -66,6 +66,9 @@ with medir("limpeza") as m:
     m["chars_antes"] = paginas.agg(F.sum("n_chars")).first()[0]
     m["chars_depois"] = paginas_limpas.agg(F.sum("n_chars_limpo")).first()[0]
 
+reducao = 100 * (1 - m["chars_depois"] / m["chars_antes"])
+print(f"🧹 Limpeza concluída | Páginas: {m['paginas']} | Caracteres: {m['chars_antes']:,} → {m['chars_depois']:,} (-{reducao:.1f}%)")
+
 display(paginas_limpas.select("doc_id", "pagina", F.substring("texto", 1, 200).alias("inicio")).orderBy("doc_id", "pagina"))
 
 # COMMAND ----------

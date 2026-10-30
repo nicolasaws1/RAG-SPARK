@@ -233,6 +233,13 @@ resumo = (
 display(resumo)
 assert resumo.filter(~F.col("ok")).count() == 0, "Alguma página não foi extraída"
 
+totais = resumo.agg(F.sum("paginas_extraidas").alias("paginas"), F.sum("caracteres").alias("caracteres"), F.sum("tabelas").alias("tabelas")).first()
+print(f"📄 Ingestão concluída | Documentos: {resumo.count()} | Páginas: {totais['paginas']} | "
+      f"Caracteres: {totais['caracteres']:,} | Tabelas detectadas: {totais['tabelas']}")
+for linha in documentos.orderBy("tipo", "ano", "numero").collect():
+    print(f"   {linha['tipo']:<26} nº {linha['numero']}/{linha['ano']} | {linha['orgao'] or '-':<7} | exercício {linha['exercicio_vaar']} | "
+          f"condicionalidades {', '.join(linha['condicionalidades'] or []) or '-'} | {linha['n_paginas']} pág.")
+
 # COMMAND ----------
 
 import json
